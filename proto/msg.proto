@@ -11,7 +11,18 @@ message Response {
   int64 result = 1; 
 }
 
+message AddUserRequest {
+  int64 id = 1;
+  int64 quantity = 2;
+  string name = 3;
+}
+
+message AddUserResponse {
+  string result = 1;
+}
+
 service AddService {
   rpc Add(Request) returns (Response);
   rpc Multiply(Request) returns (Response);
+  rpc AddUser(AddUserRequest) returns (AddUserResponse);
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net"
+	
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -49,27 +50,11 @@ func init() {
 	db, err = sql.Open("postgres", psqlInfo)
 	if err != nil {
 		panic(err)
+	} else {
+		fmt.Println("connected to db")
 	}
 }
 
-func AllPosts(w http.ResponseWriter, r *http.Request) {
-	result, err := db.Query(`SELECT * from graphql`)
-	if err != nil {
-		panic(err)
-	}
-	defer result.Close()
-
-	for result.Next() {
-		var quantity int
-		var id int
-		var name string
-		err = result.Scan(&id, &name, &quantity)
-		fmt.Printf("%v%s", quantity, name)
-		panic(err)
-
-	}
-	err = result.Err()
-}
 
 // func main() {
 // 	defer db.Close()
@@ -90,7 +75,6 @@ func main() {
 	if e := srv.Serve(listener); e != nil {
 		panic(e)
 	}
-
 }
 
 func (s *server) Add(ctx context.Context, request *proto.Request) (*proto.Response, error) {
@@ -100,6 +84,45 @@ func (s *server) Add(ctx context.Context, request *proto.Request) (*proto.Respon
 
 	return &proto.Response{Result: result}, nil
 }
+
+
+func (s *server) AddUser(ctx context.Context, request *proto.AddUserRequest) (*proto.AddUserResponse, error) {
+	id, quantity, name := request.GetId(), request.GetQuantity(), request.GetName();
+
+	insertStatement := `INSERT INTO graphql (id, quantity, name) VALUES ($1, $2, $3)`
+	result, err := db.Exec(insertStatement, id, quantity, name)
+
+	if err != nil {
+		fmt.Println(err);
+		return &proto.AddUserResponse{Result: "Error! "}, nil
+	} else {
+		fmt.Println(result);
+		return &proto.AddUserResponse{Result: "Success!"}, nil
+	}
+
+	
+}
+
+
+func AllPosts(w http.ResponseWriter, r *http.Request) {
+	result, err := db.Query(`SELECT * from graphql`)
+	if err != nil {
+		panic(err)
+	}
+	defer result.Close()
+
+	for result.Next() {
+		var quantity int
+		var id int
+		var name string
+		err = result.Scan(&id, &name, &quantity)
+		fmt.Printf("%v%s", quantity, name)
+		panic(err)
+
+	}
+	err = result.Err()
+}
+
 
 func (s *server) Multiply(ctx context.Context, request *proto.Request) (*proto.Response, error) {
 	a, b := request.GetA(), request.GetB()
