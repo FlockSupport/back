@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net"
-	
+	"context"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/lib/pq"
-	"context"
 	"flock-support/back/proto"
 
 	"google.golang.org/grpc"
@@ -56,13 +55,7 @@ func init() {
 }
 
 
-// func main() {
-// 	defer db.Close()
-// 	routers()
-// 	http.ListenAndServe(":8005", router)	
-// }
 func main() {
-	//listener, err := net.Listen("tcp", ":4040")
 	listener, err := net.Listen("tcp", ":8005")
 	if err != nil {
 		panic(err)
@@ -77,20 +70,11 @@ func main() {
 	}
 }
 
-func (s *server) Add(ctx context.Context, request *proto.Request) (*proto.Response, error) {
-	a, b := request.GetA(), request.GetB()
-
-	result := a + b
-
-	return &proto.Response{Result: result}, nil
-}
-
-
 func (s *server) AddUser(ctx context.Context, request *proto.AddUserRequest) (*proto.AddUserResponse, error) {
-	id, quantity, name := request.GetId(), request.GetQuantity(), request.GetName();
+	id, age, name := request.GetId(), request.GetAge(), request.GetName();
 
-	insertStatement := `INSERT INTO graphql (id, quantity, name) VALUES ($1, $2, $3)`
-	result, err := db.Exec(insertStatement, id, quantity, name)
+	insertStatement := `INSERT INTO users (id, age, name) VALUES ($1, $2, $3)`
+	result, err := db.Exec(insertStatement, id, age, name)
 
 	if err != nil {
 		fmt.Println(err);
@@ -99,8 +83,59 @@ func (s *server) AddUser(ctx context.Context, request *proto.AddUserRequest) (*p
 		fmt.Println(result);
 		return &proto.AddUserResponse{Result: "Success!"}, nil
 	}
+}
 
+
+func (s *server) GetAllUsers(ctx context.Context, request *proto.GetAllUsersRequest) (*proto.GetAllUsersResponse, error) {
+
+	result, err := db.Query(`select * from users`)
+
+	if err != nil {
+		panic(err)
+	} else {
+		defer result.Close()
+
+		var users []*proto.User  // an empty list
+
+		for result.Next() {
+			var id int
+			var age int
+			var name string
+			err = result.Scan(&id, &age, &name)
+
+			users = append(users,&proto.User{Id: int64(id), Age: int64(age), Name: name})
+			fmt.Printf("%v%s", age, name)
+		}
+		
+		return &proto.GetAllUsersResponse{Users: users}, nil
+	}
+}
+
+func (s *server) GetSingleUser(ctx context.Context, request *proto.GetSingleUserRequest) (*proto.User, error) {
 	
+	
+	statement := `select * from users where id = $1`
+	row := db.QueryRow(statement, request.GetId())
+	
+	var id int
+	var age int
+	var name string
+	row.Scan(&id, &age, &name)
+	return &proto.User{Id: int64(id), Age : int64(age), Name : name}, nil
+
+
+
+}	
+
+
+
+// keeping for reference
+func (s *server) Add(ctx context.Context, request *proto.Request) (*proto.Response, error) {
+	a, b := request.GetA(), request.GetB()
+
+	result := a + b
+
+	return &proto.Response{Result: result}, nil
 }
 
 
@@ -124,11 +159,4 @@ func AllPosts(w http.ResponseWriter, r *http.Request) {
 }
 
 
-func (s *server) Multiply(ctx context.Context, request *proto.Request) (*proto.Response, error) {
-	a, b := request.GetA(), request.GetB()
-
-	result := a * b
-
-	return &proto.Response{Result: result}, nil
-}
 
