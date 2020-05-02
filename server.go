@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"net/http"
 	"net"
 	"context"
 
@@ -25,10 +24,6 @@ type server struct{}
 var router *chi.Mux
 var db *sql.DB
 
-func routers() *chi.Mux {
-	router.Get("/posts", AllPosts)
-	return router
-}
 
 const (
 	host     = "localhost"
@@ -70,19 +65,20 @@ func main() {
 	}
 }
 
-func (s *server) AddUser(ctx context.Context, request *proto.AddUserRequest) (*proto.AddUserResponse, error) {
-	id, age, name := request.GetId(), request.GetAge(), request.GetName();
+func (s *server) AddUser(ctx context.Context, request *proto.AddUserRequest) (*proto.User, error) {
+	age, email, uid := request.GetAge(), request.GetEmail(), request.GetUid();
 
-	insertStatement := `INSERT INTO users (id, age, name) VALUES ($1, $2, $3)`
-	result, err := db.Exec(insertStatement, id, age, name)
 
-	if err != nil {
-		fmt.Println(err);
-		return &proto.AddUserResponse{Result: "Error! "}, nil
-	} else {
-		fmt.Println(result);
-		return &proto.AddUserResponse{Result: "Success!"}, nil
+	stmt, err := db.Prepare(`INSERT INTO users (age, email, uid) VALUES ($1, $2, $3) returning id`)
+	if (err != nil){
+		fmt.Println(err)
 	}
+	var id int
+	defer stmt.Close()
+
+	err = stmt.QueryRow(age, email, uid).Scan(&id)
+
+	return &proto.User{Id: int64(id), Age : int64(age), Email : email, Uid: uid}, nil
 }
 
 
@@ -99,12 +95,12 @@ func (s *server) GetAllUsers(ctx context.Context, request *proto.GetAllUsersRequ
 
 		for result.Next() {
 			var id int
+			var uid string
 			var age int
-			var name string
-			err = result.Scan(&id, &age, &name)
+			var email string
+			err = result.Scan(&id, &age, &email, &uid)
 
-			users = append(users,&proto.User{Id: int64(id), Age: int64(age), Name: name})
-			fmt.Printf("%v%s", age, name)
+			users = append(users,&proto.User{Id: int64(id), Age: int64(age), Email : email, Uid: uid})
 		}
 		
 		return &proto.GetAllUsersResponse{Users: users}, nil
@@ -114,49 +110,19 @@ func (s *server) GetAllUsers(ctx context.Context, request *proto.GetAllUsersRequ
 func (s *server) GetSingleUser(ctx context.Context, request *proto.GetSingleUserRequest) (*proto.User, error) {
 	
 	
-	statement := `select * from users where id = $1`
-	row := db.QueryRow(statement, request.GetId())
+	statement := `select * from users where uid = $1`
+	row := db.QueryRow(statement, request.GetUid())
 	
 	var id int
+	var uid string
 	var age int
-	var name string
-	row.Scan(&id, &age, &name)
-	return &proto.User{Id: int64(id), Age : int64(age), Name : name}, nil
+	var email string
+	row.Scan(&id, &age, &email, &uid)
+	return &proto.User{Id: int64(id), Age : int64(age), Email : email, Uid: uid}, nil
 
 
 
 }	
-
-
-
-// keeping for reference
-func (s *server) Add(ctx context.Context, request *proto.Request) (*proto.Response, error) {
-	a, b := request.GetA(), request.GetB()
-
-	result := a + b
-
-	return &proto.Response{Result: result}, nil
-}
-
-
-func AllPosts(w http.ResponseWriter, r *http.Request) {
-	result, err := db.Query(`SELECT * from graphql`)
-	if err != nil {
-		panic(err)
-	}
-	defer result.Close()
-
-	for result.Next() {
-		var quantity int
-		var id int
-		var name string
-		err = result.Scan(&id, &name, &quantity)
-		fmt.Printf("%v%s", quantity, name)
-		panic(err)
-
-	}
-	err = result.Err()
-}
 
 
 
