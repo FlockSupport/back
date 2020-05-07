@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"context"
+	"github.com/pkg/errors"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -71,14 +72,17 @@ func (s *server) AddUser(ctx context.Context, request *proto.AddUserRequest) (*p
 
 	stmt, err := db.Prepare(`INSERT INTO users (age, email, uid) VALUES ($1, $2, $3) returning id`)
 	if (err != nil){
-		fmt.Println(err)
+		return nil, errors.Wrap(err, "Backend: Unable to prepare sql statement for inserting user")
 	}
 	var id int
 	defer stmt.Close()
 
 	err = stmt.QueryRow(age, email, uid).Scan(&id)
-
-	return &proto.User{Id: int64(id), Age : int64(age), Email : email, Uid: uid}, nil
+	if (err != nil){
+		return nil, errors.Wrap(err, "Backend: Unable to create new user")
+	} else {
+		return &proto.User{Id: int64(id), Age : int64(age), Email : email, Uid: uid}, nil
+	}
 }
 
 
@@ -87,7 +91,7 @@ func (s *server) GetAllUsers(ctx context.Context, request *proto.GetAllUsersRequ
 	result, err := db.Query(`select * from users`)
 
 	if err != nil {
-		panic(err)
+		return nil, errors.Wrap(err, "Backend: Unable to retrieve users")
 	} else {
 		defer result.Close()
 
@@ -117,11 +121,16 @@ func (s *server) GetSingleUser(ctx context.Context, request *proto.GetSingleUser
 	var uid string
 	var age int
 	var email string
-	row.Scan(&id, &age, &email, &uid)
-	return &proto.User{Id: int64(id), Age : int64(age), Email : email, Uid: uid}, nil
+	// row.Scan(&id, &age, &email, &uid)
 
-
-
+	switch err := row.Scan(&id, &age, &email, &uid); err {
+	case sql.ErrNoRows:
+	  return nil, errors.Wrap(err, "Backend: User with uid " + request.GetUid() + " does not exist")
+	case nil:
+		return &proto.User{Id: int64(id), Age : int64(age), Email : email, Uid: uid}, nil
+	default:
+		return nil, errors.Wrap(err, "Backend: Error retrieving user with uid " + request.GetUid())
+	}
 }	
 
 
